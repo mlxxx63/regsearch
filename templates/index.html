@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RegSearch — NS Regulatory Semantic Search</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f4;
+      color: #1c1c1a;
+      min-height: 100vh;
+    }
+
+    header {
+      background: #1c3a5e;
+      color: white;
+      padding: 24px 32px;
+    }
+
+    header h1 { font-size: 22px; font-weight: 600; }
+    header p  { font-size: 13px; opacity: 0.75; margin-top: 4px; }
+
+    main { max-width: 860px; margin: 32px auto; padding: 0 16px; }
+
+    .search-bar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .search-bar input {
+      flex: 1;
+      padding: 12px 16px;
+      border: 1.5px solid #d1d0c9;
+      border-radius: 8px;
+      font-size: 15px;
+      background: white;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    .search-bar input:focus { border-color: #1c3a5e; }
+
+    .search-bar button {
+      padding: 12px 24px;
+      background: #1c3a5e;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .search-bar button:hover { background: #163050; }
+    .search-bar button:disabled { background: #888; cursor: not-allowed; }
+
+    .examples {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+
+    .examples span {
+      font-size: 12px;
+      color: #666;
+      align-self: center;
+    }
+
+    .example-chip {
+      padding: 5px 12px;
+      background: white;
+      border: 1px solid #d1d0c9;
+      border-radius: 16px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #1c3a5e;
+      transition: all 0.15s;
+    }
+
+    .example-chip:hover { background: #1c3a5e; color: white; border-color: #1c3a5e; }
+
+    #status {
+      font-size: 13px;
+      color: #666;
+      margin-bottom: 16px;
+      min-height: 20px;
+    }
+
+    .result-card {
+      background: white;
+      border: 1px solid #e0dfd8;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 14px;
+      transition: box-shadow 0.15s;
+    }
+
+    .result-card:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+
+    .result-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      gap: 12px;
+    }
+
+    .result-meta { flex: 1; }
+
+    .regulation-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1c3a5e;
+      margin-bottom: 3px;
+    }
+
+    .section-number {
+      font-size: 12px;
+      color: #888;
+    }
+
+    .score-badge {
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .score-high   { background: #dcfce7; color: #166534; }
+    .score-medium { background: #fef9c3; color: #854d0e; }
+    .score-low    { background: #f1f5f9; color: #64748b; }
+
+    .section-text {
+      font-size: 13px;
+      line-height: 1.7;
+      color: #3d3d3a;
+    }
+
+    .no-results {
+      text-align: center;
+      padding: 48px;
+      color: #999;
+      font-size: 14px;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #ccc;
+      border-top-color: #1c3a5e;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .stats-bar {
+      font-size: 12px;
+      color: #aaa;
+      text-align: right;
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>RegSearch</h1>
+  <p>Semantic search over Nova Scotia regulations — built with sentence-transformers + cosine similarity</p>
+</header>
+
+<main>
+
+  <div class="search-bar">
+    <input
+      type="text"
+      id="query-input"
+      placeholder="e.g. 'minister may grant a permit' or 'environmental protection'"
+      autocomplete="off"
+    />
+    <button id="search-btn" onclick="runSearch()">Search</button>
+  </div>
+
+  <div class="examples">
+    <span>Try:</span>
+    <div class="example-chip" onclick="fillQuery('penalty for non-compliance')">penalty for non-compliance</div>
+    <div class="example-chip" onclick="fillQuery('environmental protection standards')">environmental protection</div>
+    <div class="example-chip" onclick="fillQuery('minister may grant approval')">minister may grant approval</div>
+    <div class="example-chip" onclick="fillQuery('public health and safety')">public health and safety</div>
+    <div class="example-chip" onclick="fillQuery('fees payable to the government')">fees payable</div>
+  </div>
+
+  <div class="stats-bar" id="stats-bar">Loading stats...</div>
+  <div id="status"></div>
+  <div id="results"></div>
+
+</main>
+
+<script>
+  const queryInput = document.getElementById('query-input');
+  const searchBtn  = document.getElementById('search-btn');
+  const statusDiv  = document.getElementById('status');
+  const resultsDiv = document.getElementById('results');
+
+  // Load stats on page load
+  fetch('/stats')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('stats-bar').textContent =
+        `${data.regulations} regulations · ${data.sections} sections · ${data.sections_with_embeddings} embeddings indexed`;
+    })
+    .catch(() => {
+      document.getElementById('stats-bar').textContent = '';
+    });
+
+  // Allow Enter key to trigger search
+  queryInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') runSearch();
+  });
+
+  function fillQuery(text) {
+    queryInput.value = text;
+    queryInput.focus();
+  }
+
+  function getScoreClass(score) {
+    if (score >= 0.5) return 'score-high';
+    if (score >= 0.3) return 'score-medium';
+    return 'score-low';
+  }
+
+  async function runSearch() {
+    const query = queryInput.value.trim();
+    if (!query) return;
+
+    searchBtn.disabled = true;
+    searchBtn.textContent = 'Searching...';
+    statusDiv.innerHTML = '<span class="spinner"></span> Running semantic search...';
+    resultsDiv.innerHTML = '';
+
+    try {
+      const response = await fetch('/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: query, top_k: 8 })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        statusDiv.textContent = 'Error: ' + data.error;
+        return;
+      }
+
+      const results = data.results;
+      statusDiv.textContent = `Found ${results.length} results for "${query}"`;
+
+      if (results.length === 0) {
+        resultsDiv.innerHTML = '<div class="no-results">No results found. Try a different query.</div>';
+        return;
+      }
+
+      resultsDiv.innerHTML = results.map((r, i) => {
+        const scoreClass = getScoreClass(r.score);
+        const scorePercent = (r.score * 100).toFixed(1);
+        const text = r.section_text.length > 300
+          ? r.section_text.slice(0, 300) + '...'
+          : r.section_text;
+
+        return `
+          <div class="result-card">
+            <div class="result-header">
+              <div class="result-meta">
+                <div class="regulation-title">${escapeHtml(r.regulation_title)}</div>
+                <div class="section-number">Section ${escapeHtml(r.section_number || '—')}</div>
+              </div>
+              <div class="score-badge ${scoreClass}">${scorePercent}% match</div>
+            </div>
+            <div class="section-text">${escapeHtml(text)}</div>
+          </div>
+        `;
+      }).join('');
+
+    } catch (err) {
+      statusDiv.textContent = 'Network error — is the Flask server running?';
+      console.error(err);
+    } finally {
+      searchBtn.disabled = false;
+      searchBtn.textContent = 'Search';
+    }
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+</script>
+
+</body>
+</html>
